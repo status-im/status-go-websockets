@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"crypto/sha1"
+	"crypto/tls"
 	"encoding/base64"
 	"fmt"
 	"log"
@@ -11,9 +12,10 @@ import (
 )
 
 const (
-	HeaderConnection      = "Connection"
-	HeaderSecWebSocketKey = "Sec-WebSocket-Key"
-	HeaderUpgrade         = "Upgrade"
+	HeaderConnection         = "Connection"
+	HeaderSecWebSocketAccept = "Sec-WebSocket-Accept"
+	HeaderSecWebSocketKey    = "Sec-WebSocket-Key"
+	HeaderUpgrade            = "Upgrade"
 
 	websocket = "websocket"
 
@@ -34,7 +36,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	headers := http.Header{}
 	headers.Set(HeaderUpgrade, websocket)
 	headers.Set(HeaderConnection, HeaderUpgrade)
-	headers.Set(HeaderSecWebSocketKey, secWebSocketAccept)
+	headers.Set(HeaderSecWebSocketAccept, secWebSocketAccept)
 
 	for k, v := range headers {
 		w.Header()[k] = v
@@ -150,4 +152,18 @@ func handleWriteWebSocketData(conn net.Conn, messageType int, payload []byte) er
 	}
 
 	return nil
+}
+
+func main() {
+	http.HandleFunc("/ws", handleWebSocket)
+
+	server := &http.Server{
+		Addr: ":8443",
+		TLSConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		},
+	}
+
+	log.Println("WebSocket server started on wss://localhost:8443/ws")
+	log.Fatal(server.ListenAndServeTLS("cert.pem", "key.pem"))
 }
