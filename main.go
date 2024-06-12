@@ -66,6 +66,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Received message: %s", payload)
 
 		// Websocket write data
+		// in a real case the handler should process read data and return something useful to the client
 		if err := handleWriteWebSocketData(conn, messageType, payload); err != nil {
 			log.Println("Error writing WebSocket message:", err)
 			break
@@ -86,7 +87,18 @@ func handleReadWebSocketData(buf *bufio.ReadWriter) (messageType int, payload []
 	return 0, nil, nil
 }
 
+// handleWriteWebSocketData takes a WebSocket connection and writes data to it.
 func handleWriteWebSocketData(conn net.Conn, messageType int, payload []byte) error {
-	// todo
+	finAndOpcode := byte(0x80 | byte(messageType))
+	maskAndPayloadLen := byte(len(payload))
+
+	if _, err := conn.Write([]byte{finAndOpcode, maskAndPayloadLen}); err != nil {
+		return err
+	}
+
+	if _, err := conn.Write(payload); err != nil {
+		return err
+	}
+
 	return nil
 }
