@@ -25,7 +25,16 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	// Perform WebSocket handshake
 	secWebSocketKey := r.Header.Get(HeaderSecWebSocketKey)
-	computeAcceptKey(secWebSocketKey)
+	secWebSocketAccept := computeAcceptKey(secWebSocketKey)
+
+	headers := http.Header{}
+	headers.Set(HeaderUpgrade, websocket)
+	headers.Set(HeaderConnection, HeaderUpgrade)
+	headers.Set(HeaderSecWebSocketKey, secWebSocketAccept)
+
+	for k, v := range headers {
+		w.Header()[k] = v
+	}
 }
 
 // computeAcceptKey is used to generate the `secWebSocketAccept`
