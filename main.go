@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/sha1"
 	"encoding/base64"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -83,8 +84,56 @@ func computeAcceptKey(key string) string {
 }
 
 func handleReadWebSocketData(buf *bufio.ReadWriter) (messageType int, payload []byte, err error) {
-	// todo
-	return 0, nil, nil
+	header := make([]byte, 2)
+	if _, err := buf.Read(header); err != nil {
+		return 0, nil, err
+	}
+
+	fin := header[0] & 0x80
+	if fin == 0 {
+		return 0, nil, fmt.Errorf("fragmented messages are not supported")
+	}
+
+	opcode := header[0] & 0x0F
+	mask := header[1] & 0x80
+	payloadLen := int(header[1] & 0x7F)
+
+	if mask == 0 {
+		return 0, nil, fmt.Errorf("unmasked messages from the client are not supported")
+	}
+
+	if payloadLen == 126 {
+		extendedPayloadLen := make([]byte, 2)
+		if _, err := buf.Read(extendedPayloadLen); err != nil {
+			return 0, nil, err
+		}
+		payloadLen = int(extendedPayloadLen[0])<<8 | int(extendedPayloadLen[1])
+	} else if payloadLen == 127 {
+		extendedPayloadLen := make([]byte, 8)
+		if _, err := buf.Read(extendedPayloadLen); err != nil {
+			return 0, nil, err
+		}
+		payloadLen = int(extendedPayloadLen[0])<<56 | int(extendedPayloadLen[1])<<48 |
+			int(extendedPayloadLen[2])<<40 | int(extendedPayloadLen[3])<<32 |
+			int(extendedPayloadLen[4])<<24 | int(extendedPayloadLen[5])<<16 |
+			int(extendedPayloadLen[6])<<8 | int(extendedPayloadLen[7])
+	}
+
+	maskingKey := make([]byte, 4)
+	if _, err := buf.Read(maskingKey); err != nil {
+		return 0, nil, err
+	}
+
+	payload = make([]byte, payloadLen)
+	if _, err := buf.Read(payload); err != nil {
+		return 0, nil, err
+	}
+
+	for i := 0; i < payloadLen; i++ {
+		payload[i] ^= maskingKey[i%4]
+	}
+
+	return int(opcode), payload, nil
 }
 
 // handleWriteWebSocketData takes a WebSocket connection and writes data to it.
