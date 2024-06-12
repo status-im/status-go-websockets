@@ -35,6 +35,20 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	for k, v := range headers {
 		w.Header()[k] = v
 	}
+
+	w.WriteHeader(http.StatusSwitchingProtocols)
+	hijacker, ok := w.(http.Hijacker)
+	if !ok {
+		http.Error(w, "Hijacking not supported", http.StatusInternalServerError)
+		return
+	}
+
+	conn, _, err := hijacker.Hijack()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer conn.Close()
 }
 
 // computeAcceptKey is used to generate the `secWebSocketAccept`
